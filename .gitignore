@@ -1,0 +1,9 @@
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+collector/.venv/
+collector/runtime/
+collector/config/collector.local.yaml
+collector/config/tushare.secrets.local.yaml
+*.log
