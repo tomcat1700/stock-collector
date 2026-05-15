@@ -4,14 +4,14 @@
 
 - 行情事实层：`realtime_quotes`、`kline_minute`、`kline_daily`
 - 日度基础指标层：`daily_basic`
-- 股票池与成员：`pools`、`pool_members_current`
+- 采集清单：`collector_watchlist`
 - 板块：`standard_sectors`、`standard_sector_stocks`
 - 审计与质量：`job_runs`、`data_quality_log`
 - 当前三张行情事实表均已完成 Timescale hypertable 迁移；`daily_basic` 也已落为 hypertable；历史影子回退表已清理，不是当前业务实体。
 
 ## 2. 关系说明
 
-- `pools` 与 `pool_members_current` 构成股票池树与成员关系
+- `collector_watchlist` 是单一采集清单；不再按池分类，通过 `instrument_type` 区分股票和指数
 - `realtime_quotes` 作为盘中快照输入，支撑分钟聚合与前端展示
 - `kline_minute` 作为统一分钟事实层，`period` 区分不同周期
 - `kline_daily` 作为盘后日线真值层
@@ -22,6 +22,7 @@
 
 以下旧表已删除，不再属于当前 ER 口径：
 
+- `pools`
 - `sector_mapping`
 - `sector_operation_log`
 - `sector_quotes_daily`

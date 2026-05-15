@@ -34,6 +34,16 @@ from db import (
 from runtime_control import normalize_source, source_preference_order
 
 
+TRADE_DAY_PROBE_WATCHLIST = [
+    {
+        "instrument_id": "000001.SH",
+        "code": "000001",
+        "name": "上证指数",
+        "instrument_type": "index",
+    }
+]
+
+
 FIELDNAMES = [
     "instrument_id",
     "quote_time",
@@ -182,6 +192,7 @@ def fetch_sina_watchlist_frame(watchlist: list[dict[str, str]]) -> pd.DataFrame:
             continue
         rows.append(
             {
+                "symbol": symbol.replace("var hq_str_", ""),
                 "代码": symbol.replace("var hq_str_", "")[-6:],
                 "名称": fields[0],
                 "今开": fields[1],
@@ -220,6 +231,15 @@ def fetch_sina_watchlist_frame(watchlist: list[dict[str, str]]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def fetch_source_frame(watchlist: list[dict[str, str]], source: str) -> pd.DataFrame:
+    normalized_source = normalize_source(source)
+    if normalized_source == "eastmoney":
+        return ak.stock_zh_a_spot_em()
+    if normalized_source == "sina":
+        return fetch_sina_watchlist_frame(watchlist)
+    return pd.DataFrame()
+
+
 def fetch_spot_frame(
     watchlist: list[dict[str, str]],
     preferred_source: str | None = None,
@@ -232,11 +252,7 @@ def fetch_spot_frame(
     )
     for source in sources:
         try:
-            frame = pd.DataFrame()
-            if source == "eastmoney":
-                frame = ak.stock_zh_a_spot_em()
-            elif source == "sina":
-                frame = fetch_sina_watchlist_frame(watchlist)
+            frame = fetch_source_frame(watchlist, source)
             if not frame.empty:
                 return frame, source
         except Exception:
@@ -249,13 +265,8 @@ def probe_source_trade_date(
     preferred_source: str,
     limit: int | None = 1,
 ) -> dict[str, str | None]:
-    watchlist = fetch_watchlist(config, limit=limit)
-    if not watchlist:
-        return {
-            "status": "empty_watchlist",
-            "source": normalize_source(preferred_source),
-            "trade_date": None,
-        }
+    del config, limit
+    watchlist = TRADE_DAY_PROBE_WATCHLIST
     frame, resolved_source = fetch_spot_frame(
         watchlist,
         preferred_source=normalize_source(preferred_source),
@@ -284,20 +295,34 @@ def normalize_rows(
     source: str,
     ingest_batch_id: str,
 ) -> list[dict[str, str | bool | None]]:
-    code_to_instrument = {
-        normalize_code(item["code"]): item["instrument_id"]
+    code_to_instruments: dict[str, list[str]] = {}
+    symbol_to_instrument = {
+        sina_symbol(item["instrument_id"], item["code"]): item["instrument_id"]
         for item in watchlist
-        if normalize_code(item["code"])
+    }
+    for item in watchlist:
+        code = normalize_code(item["code"])
+        if code:
+            code_to_instruments.setdefault(code, []).append(item["instrument_id"])
+    code_to_instrument = {
+        code: instruments[0]
+        for code, instruments in code_to_instruments.items()
+        if len(instruments) == 1
     }
     watch_codes = set(code_to_instrument)
     rows: list[dict[str, str | bool | None]] = []
 
     for raw_row in frame.to_dict(orient="records"):
+        raw_symbol = str(pick_value(raw_row, "symbol") or "").strip()
+        instrument_id = symbol_to_instrument.get(raw_symbol) if source == "sina" else None
         code = normalize_code(pick_value(raw_row, "代码", "symbol", "code"))
-        if code not in watch_codes:
+        if instrument_id is None:
+            if code not in watch_codes:
+                continue
+            instrument_id = code_to_instrument[code]
+        if instrument_id is None:
             continue
 
-        instrument_id = code_to_instrument[code]
         row_timestamp = parse_source_timestamp(raw_row)
         if row_timestamp is None:
             if source == "sina":
@@ -488,7 +513,7 @@ def run_collection(
             config,
             data_domain="realtime_collect",
             issue_type="empty_watchlist",
-            issue_message="No instruments found in pool_members_current",
+            issue_message="No instruments found in collector_watchlist",
             issue_level="warn",
         )
         return {
@@ -512,16 +537,46 @@ def run_collection(
         [item["instrument_id"] for item in watchlist],
     )
     latest_state_seconds = time.perf_counter() - latest_state_started_at
-    fetch_source_started_at = time.perf_counter()
-    frame, resolved_source = fetch_spot_frame(
-        watchlist,
-        preferred_source=normalize_source(source),
-        allow_fallback=allow_fallback,
+    sources = (
+        source_preference_order(source)
+        if allow_fallback
+        else [normalize_source(source)]
     )
-    fetch_source_seconds = time.perf_counter() - fetch_source_started_at
-    normalize_started_at = time.perf_counter()
-    rows = normalize_rows(frame, watchlist, previous_state, as_of, resolved_source, batch_id)
-    normalize_seconds = time.perf_counter() - normalize_started_at
+    rows: list[dict[str, str | bool | None]] = []
+    resolved_source = normalize_source(source)
+    saw_non_empty_frame = False
+    fetch_source_seconds = 0.0
+    normalize_seconds = 0.0
+    for candidate_source in sources:
+        fetch_source_started_at = time.perf_counter()
+        try:
+            frame = fetch_source_frame(watchlist, candidate_source)
+        except Exception:
+            fetch_source_seconds += time.perf_counter() - fetch_source_started_at
+            if not allow_fallback:
+                raise
+            continue
+        fetch_source_seconds += time.perf_counter() - fetch_source_started_at
+        if frame.empty:
+            continue
+        saw_non_empty_frame = True
+        normalize_started_at = time.perf_counter()
+        candidate_rows = normalize_rows(
+            frame,
+            watchlist,
+            previous_state,
+            as_of,
+            candidate_source,
+            batch_id,
+        )
+        normalize_seconds += time.perf_counter() - normalize_started_at
+        if candidate_rows:
+            rows = candidate_rows
+            resolved_source = candidate_source
+            break
+
+    if not saw_non_empty_frame:
+        raise RuntimeError("No realtime source returned a usable snapshot")
 
     if not rows:
         log_quality(

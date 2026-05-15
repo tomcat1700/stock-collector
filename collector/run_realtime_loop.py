@@ -25,6 +25,9 @@ from runtime_control import (
 SOFT_FAILURE_STATUSES = {"stale_snapshot", "empty_payload"}
 CN_TZ = dt.timezone(dt.timedelta(hours=8))
 OFF_SESSION_POLL_SECONDS = 1.0
+FINAL_CLOSE_START = dt.time(15, 0, 4)
+FINAL_CLOSE_END = dt.time(15, 1, 30)
+TAIL_FALLBACK_START = dt.time(14, 57, 2)
 
 
 def in_a_share_trading_session(now: dt.datetime) -> tuple[bool, str]:
@@ -39,6 +42,16 @@ def in_a_share_trading_session(now: dt.datetime) -> tuple[bool, str]:
     if current < dt.time(12, 59, 58):
         return False, "lunch_break"
     return False, "closed"
+
+
+def in_final_close_window(now: dt.datetime) -> bool:
+    current = now.astimezone(CN_TZ).timetz().replace(tzinfo=None)
+    return FINAL_CLOSE_START <= current <= FINAL_CLOSE_END
+
+
+def should_try_tail_fallback(now: dt.datetime) -> bool:
+    current = now.astimezone(CN_TZ).timetz().replace(tzinfo=None)
+    return TAIL_FALLBACK_START <= current <= FINAL_CLOSE_END
 
 
 def main() -> int:
@@ -123,12 +136,18 @@ def main() -> int:
         iteration += 1
         local_now = dt.datetime.now(CN_TZ)
         today_iso = local_now.date().isoformat()
+        close_fix_now = False
         if cached_probe_date != local_now.date():
             cached_probe_date = local_now.date()
             cached_probe_is_trading_day = None
         if not args.disable_trading_hours_gate:
             trading_now, gate_phase = in_a_share_trading_session(local_now)
-            if trading_now and cached_probe_is_trading_day is not True:
+            close_fix_now = (
+                not trading_now
+                and in_final_close_window(local_now)
+                and state.last_close_fix_date != today_iso
+            )
+            if (trading_now or close_fix_now) and cached_probe_is_trading_day is not True:
                 try:
                     probe_result = probe_source_trade_date(
                         config,
@@ -148,7 +167,7 @@ def main() -> int:
                     last_gate_phase = gate_phase
                     time.sleep(OFF_SESSION_POLL_SECONDS)
                     continue
-            if not trading_now:
+            if not trading_now and not close_fix_now:
                 last_gate_phase = gate_phase
                 time.sleep(OFF_SESSION_POLL_SECONDS)
                 continue
@@ -156,12 +175,12 @@ def main() -> int:
                 print(
                     "run_realtime_loop trading-session-resume",
                     f"iteration={iteration}",
-                    f"phase={gate_phase}",
+                    f"phase={'final_close' if close_fix_now else gate_phase}",
                 )
                 maybe_log_loop_heartbeat(
-                    "trading_session_resume",
+                    "final_close_resume" if close_fix_now else "trading_session_resume",
                     force=True,
-                    payload={"phase": gate_phase},
+                    payload={"phase": "final_close" if close_fix_now else gate_phase},
                 )
                 last_gate_phase = None
         current_source = normalize_source(state.current_primary or args.source)
@@ -260,7 +279,7 @@ def main() -> int:
                 config,
                 source=current_source,
                 limit=args.limit,
-                allow_fallback=False,
+                allow_fallback=close_fix_now or should_try_tail_fallback(local_now),
             )
             resolved_source = str(result.get("source") or current_source)
             result_status = str(result.get("status") or "unknown")
@@ -342,11 +361,16 @@ def main() -> int:
                 processed_count=int(result.get("row_count") or 0),
                 error_message=None,
             )
-            state = mark_success(
-                state,
-                source=resolved_source,
-                batch_id=str(result.get("batch_id") or ""),
-            )
+            if close_fix_now:
+                state.last_collect_slot = str(result.get("batch_id") or "")
+                state.consecutive_primary_errors = 0
+                state.last_close_fix_date = today_iso
+            else:
+                state = mark_success(
+                    state,
+                    source=resolved_source,
+                    batch_id=str(result.get("batch_id") or ""),
+                )
             soft_failure_streak = 0
             success_count += 1
             save_state(state, state_path)

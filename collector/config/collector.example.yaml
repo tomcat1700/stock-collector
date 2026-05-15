@@ -2,7 +2,7 @@ host: 127.0.0.1
 port: 5432
 user: your_db_user
 password: your_db_password
-dbname: stockx
+dbname: stock_realtime
 source: sina
 preferred_source: sina
 interval_seconds: 2

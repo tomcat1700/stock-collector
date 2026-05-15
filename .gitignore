@@ -7,3 +7,4 @@ collector/runtime/
 collector/config/collector.local.yaml
 collector/config/tushare.secrets.local.yaml
 *.log
+.omx/

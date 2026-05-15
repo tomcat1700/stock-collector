@@ -174,6 +174,57 @@ def fetch_active_stock_ids(config: PgConfig) -> set[str]:
     return {row["instrument_id"] for row in rows if row.get("instrument_id")}
 
 
+def fetch_watchlist_index_ids(config: PgConfig) -> list[str]:
+    rows = psql_query(
+        config,
+        """
+        SELECT cw.instrument_id
+        FROM public.collector_watchlist cw
+        JOIN public.instruments i
+            ON i.instrument_id = cw.instrument_id
+        WHERE i.type = 'index'
+          AND COALESCE(i.status, 'active') = 'active'
+        ORDER BY cw.instrument_id;
+        """,
+    )
+    return [row["instrument_id"] for row in rows if row.get("instrument_id")]
+
+
+def build_tushare_daily_row(
+    raw_row: dict,
+    trade_date: dt.date,
+    source: str,
+) -> dict[str, str | bool | None]:
+    pre_close = raw_row.get("pre_close")
+    high = raw_row.get("high")
+    low = raw_row.get("low")
+    amplitude = None
+    if pre_close not in (None, 0) and high is not None and low is not None:
+        amplitude = (float(high) - float(low)) / float(pre_close) * 100
+    volume = raw_row.get("vol")
+    volume_value = None if volume is None else int(Decimal(str(volume)))
+    amount = raw_row.get("amount")
+    amount_yuan = None if amount is None else float(amount) * 1000
+    return {
+        "instrument_id": str(raw_row["ts_code"]),
+        "trade_date": trade_date.isoformat(),
+        "open": to_decimal_string(raw_row.get("open")),
+        "high": to_decimal_string(high),
+        "low": to_decimal_string(low),
+        "close": to_decimal_string(raw_row.get("close")),
+        "volume": None if volume_value is None else str(volume_value),
+        "amount": to_decimal_string(amount_yuan),
+        "pct_change": to_decimal_string(raw_row.get("pct_chg")),
+        "amplitude": to_decimal_string(amplitude),
+        "change": to_decimal_string(raw_row.get("change")),
+        "turnover": None,
+        "source": source,
+        "is_final": True,
+        "version": "1",
+        "updated_at": dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).isoformat(),
+    }
+
+
 def run_reconcile_tushare(
     config: PgConfig,
     trade_date: dt.date,
@@ -188,6 +239,7 @@ def run_reconcile_tushare(
     if daily_df.empty:
         raise RuntimeError(f"Tushare daily returned 0 rows for {trade_date.isoformat()}")
     active_stock_ids = fetch_active_stock_ids(config)
+    watchlist_index_ids = fetch_watchlist_index_ids(config)
     daily_basic_rows: list[dict[str, str | None]] = []
     returned_basic_ids: set[str] = set()
     daily_basic_error_count = 0
@@ -231,35 +283,44 @@ def run_reconcile_tushare(
     for raw_row in daily_df.to_dict(orient="records"):
         instrument_id = str(raw_row["ts_code"])
         returned_ids.add(instrument_id)
-        pre_close = raw_row.get("pre_close")
-        high = raw_row.get("high")
-        low = raw_row.get("low")
-        amplitude = None
-        if pre_close not in (None, 0) and high is not None and low is not None:
-            amplitude = (float(high) - float(low)) / float(pre_close) * 100
-        volume = raw_row.get("vol")
-        volume_value = None if volume is None else int(Decimal(str(volume)))
-        amount = raw_row.get("amount")
-        amount_yuan = None if amount is None else float(amount) * 1000
+        success_rows.append(build_tushare_daily_row(raw_row, trade_date, source="tushare"))
+
+    returned_index_ids: set[str] = set()
+    index_error_count = 0
+    for instrument_id in watchlist_index_ids:
+        try:
+            index_df = pro.index_daily(
+                ts_code=instrument_id,
+                trade_date=trade_date_str,
+            )
+        except Exception as exc:  # pragma: no cover
+            index_error_count += 1
+            log_quality(
+                config,
+                data_domain="daily_reconcile",
+                ref_key=instrument_id,
+                issue_type="index_daily_source_error",
+                issue_message=str(exc),
+                issue_level="warn",
+                payload={"trade_date": trade_date.isoformat(), "source": "tushare_index_daily"},
+            )
+            continue
+        if index_df.empty:
+            index_error_count += 1
+            log_quality(
+                config,
+                data_domain="daily_reconcile",
+                ref_key=instrument_id,
+                issue_type="missing_index_daily",
+                issue_message=f"Tushare index_daily returned 0 rows for {instrument_id} on {trade_date.isoformat()}",
+                issue_level="warn",
+                payload={"trade_date": trade_date.isoformat(), "source": "tushare_index_daily"},
+            )
+            continue
+        raw_row = index_df.iloc[0].to_dict()
+        returned_index_ids.add(str(raw_row["ts_code"]))
         success_rows.append(
-            {
-                "instrument_id": instrument_id,
-                "trade_date": trade_date.isoformat(),
-                "open": to_decimal_string(raw_row.get("open")),
-                "high": to_decimal_string(high),
-                "low": to_decimal_string(low),
-                "close": to_decimal_string(raw_row.get("close")),
-                "volume": None if volume_value is None else str(volume_value),
-                "amount": to_decimal_string(amount_yuan),
-                "pct_change": to_decimal_string(raw_row.get("pct_chg")),
-                "amplitude": to_decimal_string(amplitude),
-                "change": to_decimal_string(raw_row.get("change")),
-                "turnover": None,
-                "source": "tushare",
-                "is_final": True,
-                "version": "1",
-                "updated_at": dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).isoformat(),
-            }
+            build_tushare_daily_row(raw_row, trade_date, source="tushare_index_daily")
         )
 
     missing_ids = sorted(active_stock_ids - returned_ids)
@@ -323,7 +384,23 @@ def run_reconcile_tushare(
             )
             daily_basic_error_count += 1
 
-    return len(success_rows), len(missing_ids) + daily_basic_error_count
+    missing_index_ids = sorted(set(watchlist_index_ids) - returned_index_ids)
+    if missing_index_ids:
+        log_quality(
+            config,
+            data_domain="daily_reconcile",
+            issue_type="missing_index_daily",
+            issue_message=f"Tushare index_daily missing {len(missing_index_ids)} rows for {trade_date.isoformat()}",
+            issue_level="warn",
+            payload={
+                "trade_date": trade_date.isoformat(),
+                "source": "tushare_index_daily",
+                "missing_count": len(missing_index_ids),
+                "sample_missing": missing_index_ids[:20],
+            },
+        )
+
+    return len(success_rows), len(missing_ids) + daily_basic_error_count + index_error_count
 
 
 def write_csv(rows: list[dict[str, str | bool | None]], path: pathlib.Path) -> None:

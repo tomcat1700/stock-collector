@@ -35,7 +35,7 @@
 
 ## 当前脚本
 
-- `collect_realtime.py`：拉取观察池实时行情并写入 `public.realtime_quotes`
+- `collect_realtime.py`：拉取采集清单实时行情并写入 `public.realtime_quotes`
 - `run_realtime_loop.py`：按固定间隔循环执行实时采集
   - 当前主源为 `sina`，主配置 cadence 为 `2s`
   - 正常连续采集窗口：工作日 `09:29:56-11:30:03`、`12:59:58-15:00:03`
@@ -83,7 +83,7 @@
 - 不引入外部端口级决策流程；仅做数据抓取、聚合、校验与审计。
 - 不直接重建 `kline_daily` 历史；任何修复应避免破坏全量历史。
 - 不把源切换状态散落在多个脚本里；统一走 `runtime_control.py` 和 runtime state 文件。
-- 源切换只由真实采集故障触发；空观察池、空 payload、陈旧快照不应被当成 failover 信号。
+- 源切换只由真实采集故障触发；空采集清单、空 payload、陈旧快照不应被当成 failover 信号。
 - 在改采集链路前，先补齐并同步 `docs/current-state/`。
 
 ## 当前链路核对要求（本版本固定）

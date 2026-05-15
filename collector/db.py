@@ -39,7 +39,7 @@ def add_pg_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--port", type=int, default=int(os.getenv("PGPORT", "5432")))
     parser.add_argument("--user", default=os.getenv("PGUSER", "wt"))
     parser.add_argument("--password", default=os.getenv("PGPASSWORD", ""))
-    parser.add_argument("--dbname", default=os.getenv("PGDATABASE", "stockx"))
+    parser.add_argument("--dbname", default=os.getenv("PGDATABASE", "stock_realtime"))
 
 
 def require_password(config: PgConfig) -> None:
@@ -226,13 +226,12 @@ def fetch_watchlist(config: PgConfig, limit: int | None = None) -> list[dict[str
         config,
         f"""
         SELECT
-            pm.instrument_id,
-            COALESCE(i.code, split_part(pm.instrument_id, '.', 1)) AS code,
-            COALESCE(i.name, '') AS name
-        FROM public.pool_members_current pm
-        LEFT JOIN public.instruments i
-            ON i.instrument_id = pm.instrument_id
-        ORDER BY pm.updated_at DESC, pm.instrument_id
+            cw.instrument_id,
+            split_part(cw.instrument_id, '.', 1) AS code,
+            cw.name,
+            cw.instrument_type
+        FROM public.collector_watchlist cw
+        ORDER BY cw.instrument_id
         {limit_sql};
         """,
     )
