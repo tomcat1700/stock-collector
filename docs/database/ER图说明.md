@@ -3,6 +3,7 @@
 ## 1. 核心实体
 
 - 行情事实层：`realtime_quotes`、`kline_minute`、`kline_daily`
+- 日线衍生层：`daily_adj_factor`、`daily_indicator`
 - 日度基础指标层：`daily_basic`
 - 采集清单：`collector_watchlist`
 - 板块：`standard_sectors`、`standard_sector_stocks`
@@ -15,6 +16,8 @@
 - `realtime_quotes` 作为盘中快照输入，支撑分钟聚合与前端展示
 - `kline_minute` 作为统一分钟事实层，`period` 区分不同周期
 - `kline_daily` 作为盘后日线真值层
+- `daily_adj_factor` 保存股票复权因子，支撑系统自行计算前复权价格
+- `daily_indicator` 保存系统 MA 结果，股票口径为前复权 `qfq_close`，指数口径为原始 `close`
 - `standard_sectors` 与 `standard_sector_stocks` 构成当前板块目录与成分关系
 - `job_runs` 与 `data_quality_log` 负责作业与数据质量审计
 

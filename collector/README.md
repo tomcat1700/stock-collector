@@ -45,7 +45,10 @@
   - `empty_payload` / `stale_snapshot` 会被视为软失败，仅触发退避，不累计主备切换计数
   - 兼容旧启动脚本：`collector/.venv/bin/python` 会转发到当前可用解释器，供历史 `stock-collector-launch.sh` 直接调用
 - `reconcile_daily.py`：按交易日从 Tushare 拉取日 K 并回写 `public.kline_daily`
+- `sync_index_daily_history.py`：按指数从 Tushare `index_daily` 回填指数历史日 K
 - `sync_daily_basic.py`：按 `trade_date` 或日期区间从 Tushare 拉取并写入 `public.daily_basic`
+- `sync_daily_adj_factor.py`：按交易日从 Tushare 拉取股票复权因子并写入 `public.daily_adj_factor`
+- `calculate_daily_indicator.py`：基于本地 `kline_daily` 和 `daily_adj_factor` 计算全量 MA 指标并写入 `public.daily_indicator`
 - `source_probe.py`：检测 AkShare 实时与日线源是否可用
 - `sync_eastmoney_sectors.py`：同步东方财富板块目录
 - `sync_eastmoney_sector_stocks.py`：同步东方财富板块成分股到 `public.standard_sector_stocks`
@@ -53,7 +56,7 @@
 - `runtime_control.py`：collector 运行态与 failover state 读写助手
 
 - 当前盘后任务顺序：
-  - `16:30`：`reconcile_daily(当日) -> sync_daily_basic(当日)`
+  - `16:30`：`reconcile_daily(当日) -> sync_daily_basic(当日) -> sync_daily_adj_factor(当日) -> calculate_daily_indicator(当日)`
   - `20:00`：`sync_eastmoney_sectors -> sync_eastmoney_sector_stocks`
 
 ## 当前已落地脚本
@@ -90,5 +93,5 @@
 
 - `realtime_quotes` 为唯一秒级写入入口。
 - `kline_minute.period = 1/5/15/30/60` 为唯一周期口径。
-- 盘后职责边界为 `reconcile_daily`（日线）、`sync_daily_basic`（日度基础指标）与板块同步。
+- 盘后职责边界为 `reconcile_daily`（日线）、`sync_daily_basic`（日度基础指标）、`sync_daily_adj_factor`（复权因子）、`calculate_daily_indicator`（系统 MA）与板块同步。
 - `job_runs` / `data_quality_log` 是 collector 数据链路可观测性唯一入口。
