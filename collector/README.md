@@ -49,6 +49,8 @@
 - `sync_daily_basic.py`：按 `trade_date` 或日期区间从 Tushare 拉取并写入 `public.daily_basic`
 - `sync_daily_adj_factor.py`：按交易日从 Tushare 拉取股票复权因子并写入 `public.daily_adj_factor`
 - `calculate_daily_indicator.py`：基于本地 `kline_daily` 和 `daily_adj_factor` 计算全量 MA 指标并写入 `public.daily_indicator`
+- `cleanup_realtime_quotes.py`：按 `realtime_quotes.trade_date` 保留最近 10 个实际采集交易日的秒级快照
+- `cleanup_kline_minute.py`：按 `kline_minute.trade_date` 保留最近 45 个实际采集交易日的分钟线
 - `source_probe.py`：检测 AkShare 实时与日线源是否可用
 - `sync_eastmoney_sectors.py`：同步东方财富板块目录
 - `sync_eastmoney_sector_stocks.py`：同步东方财富板块成分股到 `public.standard_sector_stocks`
@@ -58,6 +60,7 @@
 - 当前盘后任务顺序：
   - `16:30`：`reconcile_daily(当日) -> sync_daily_basic(当日) -> sync_daily_adj_factor(当日) -> calculate_daily_indicator(当日)`
   - `20:00`：`sync_eastmoney_sectors -> sync_eastmoney_sector_stocks`
+  - `21:30`：`cleanup_realtime_quotes -> cleanup_kline_minute -> cleanup_data_quality_log`
 
 ## 当前已落地脚本
 

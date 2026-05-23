@@ -63,7 +63,8 @@ Timescale 版本：
 
 - `realtime_quotes` 与 `kline_minute` 已于 `2026-04-08` 清理 `2026-04-07` 以前的历史盘中数据。
 - 本次清理不影响 `kline_daily`。
-- 当前盘中历史保留口径：从 `2026-04-07` 起保留。
+- 当前 `realtime_quotes` 保留口径：由 `cleanup_realtime_quotes.py` 保留最近 `10` 个实际采集交易日。
+- 当前 `kline_minute` 保留口径：由 `cleanup_kline_minute.py` 保留最近 `45` 个实际采集交易日。
 
 ### 2.5 日线历史窗口清理
 
@@ -94,7 +95,7 @@ Timescale 版本：
 
 - 任何新增事实表都应先判断是否能复用 `realtime_quotes`、`kline_minute`、`kline_daily` 的既有边界。
 - `kline_daily` 后续保留窗口按 `>= 2020-01-01` 收敛。
-- 这次窗口调整只影响 `kline_daily`，不影响 `realtime_quotes` / `kline_minute` 的当前保留口径。
+- `realtime_quotes` 与 `kline_minute` 分别由独立维护任务按交易日滚动清理；`kline_daily` 不跟随盘中事实层清理。
 - `public.daily_basic` 已新增，并与 `kline_daily` 按 `(instrument_id, trade_date)` 同键对齐，不再继续混塞进 `kline_daily`。
 - `public.daily_basic` 当前为 Timescale hypertable，时间列为 `trade_date`。
 - `public.daily_basic` 首批指标以 Tushare `daily_basic` 为准，字段单位统一写清：
