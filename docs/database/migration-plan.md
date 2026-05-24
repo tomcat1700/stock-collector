@@ -64,7 +64,7 @@ Timescale 版本：
 - `realtime_quotes` 与 `kline_minute` 已于 `2026-04-08` 清理 `2026-04-07` 以前的历史盘中数据。
 - 本次清理不影响 `kline_daily`。
 - 当前 `realtime_quotes` 保留口径：由 `cleanup_realtime_quotes.py` 保留最近 `10` 个实际采集交易日。
-- 当前 `kline_minute` 保留口径：由 `cleanup_kline_minute.py` 保留最近 `45` 个实际采集交易日。
+- 当前 `kline_minute` 保留口径：由 `cleanup_kline_minute.py` 保留 1 分钟最近 `45` 个实际采集交易日，5/15/30/60 分钟最近 `120` 个实际采集交易日。
 
 ### 2.5 日线历史窗口清理
 

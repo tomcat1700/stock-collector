@@ -50,7 +50,7 @@
 - `sync_daily_adj_factor.py`：按交易日从 Tushare 拉取股票复权因子并写入 `public.daily_adj_factor`
 - `calculate_daily_indicator.py`：基于本地 `kline_daily` 和 `daily_adj_factor` 计算全量 MA 指标并写入 `public.daily_indicator`
 - `cleanup_realtime_quotes.py`：按 `realtime_quotes.trade_date` 保留最近 10 个实际采集交易日的秒级快照
-- `cleanup_kline_minute.py`：按 `kline_minute.trade_date` 保留最近 45 个实际采集交易日的分钟线
+- `cleanup_kline_minute.py`：按 `kline_minute.trade_date` 保留 1 分钟最近 45 个实际采集交易日、5/15/30/60 分钟最近 120 个实际采集交易日
 - `source_probe.py`：检测 AkShare 实时与日线源是否可用
 - `sync_eastmoney_sectors.py`：同步东方财富板块目录
 - `sync_eastmoney_sector_stocks.py`：同步东方财富板块成分股到 `public.standard_sector_stocks`
