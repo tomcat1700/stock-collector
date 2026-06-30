@@ -86,15 +86,18 @@ def delete_stale_rows(
         rows = psql_query(
             config,
             f"""
-            WITH deleted AS (
-                DELETE FROM public.realtime_quotes
-                WHERE ctid IN (
-                    SELECT ctid
-                    FROM public.realtime_quotes
-                    WHERE {predicate}
-                    ORDER BY trade_date NULLS FIRST, quote_time
-                    LIMIT {batch_size}
-                )
+            WITH stale AS (
+                SELECT instrument_id, quote_time
+                FROM public.realtime_quotes
+                WHERE {predicate}
+                ORDER BY trade_date NULLS FIRST, quote_time
+                LIMIT {batch_size}
+            ),
+            deleted AS (
+                DELETE FROM public.realtime_quotes AS q
+                USING stale
+                WHERE q.instrument_id = stale.instrument_id
+                  AND q.quote_time = stale.quote_time
                 RETURNING 1
             )
             SELECT count(*)::bigint AS deleted_count

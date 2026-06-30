@@ -102,15 +102,19 @@ def delete_stale_rows(
         rows = psql_query(
             config,
             f"""
-            WITH deleted AS (
-                DELETE FROM public.kline_minute
-                WHERE ctid IN (
-                    SELECT ctid
-                    FROM public.kline_minute
-                    WHERE {predicate}
-                    ORDER BY trade_date NULLS FIRST, period, bar_time
-                    LIMIT {batch_size}
-                )
+            WITH stale AS (
+                SELECT instrument_id, bar_time, period
+                FROM public.kline_minute
+                WHERE {predicate}
+                ORDER BY trade_date NULLS FIRST, period, bar_time
+                LIMIT {batch_size}
+            ),
+            deleted AS (
+                DELETE FROM public.kline_minute AS k
+                USING stale
+                WHERE k.instrument_id = stale.instrument_id
+                  AND k.bar_time = stale.bar_time
+                  AND k.period = stale.period
                 RETURNING 1
             )
             SELECT count(*)::bigint AS deleted_count

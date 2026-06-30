@@ -6,6 +6,7 @@
 
 - `public.realtime_quotes`：秒级快照层（写入口）
 - `public.kline_minute`：统一分钟层，`period` 维度区分 `1/5/15/30/60`
+- `public.kline_5min`：回测专用 5 分钟层，保留最近 365 自然日
 - `public.kline_daily`：盘后日线真值层（历史必须保留）
 
 禁止回归到的过渡对象：
@@ -28,6 +29,7 @@
 
 - 现货行情采集 Worker：拉取快照到 `realtime_quotes`
 - 周期聚合：维护 `public.kline_minute.period`
+- 回测 5 分钟线：维护 `public.kline_5min`
 - 日线盘后校准：修复当日缺失、覆盖异常、补齐字段一致性
 - 日度基础指标同步：维护 `public.daily_basic`
 - 板块同步任务：维护板块元数据与股票映射
@@ -54,7 +56,7 @@
 - `source_probe.py`：检测 AkShare 实时与日线源是否可用
 - `sync_eastmoney_sectors.py`：同步东方财富板块目录
 - `sync_eastmoney_sector_stocks.py`：同步东方财富板块成分股到 `public.standard_sector_stocks`
-- `run_minute_aggregation_loop.py`：独立按频率从 `realtime_quotes` 聚合 `1/5/15/30/60` 分钟线
+- `run_minute_aggregation_loop.py`：独立按频率从 `realtime_quotes` 聚合 `1/5/15/30/60` 分钟线；5 分钟线同步写入 `public.kline_5min`
 - `runtime_control.py`：collector 运行态与 failover state 读写助手
 
 - 当前盘后任务顺序：
