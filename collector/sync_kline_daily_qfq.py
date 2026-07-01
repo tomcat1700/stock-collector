@@ -127,10 +127,10 @@ full_adjusted AS (
     SELECT
         kd.instrument_id,
         kd.trade_date,
-        CASE WHEN kd.open IS NOT NULL THEN round(kd.open * daf.adj_factor / la.anchor_factor, 6) END AS open,
-        CASE WHEN kd.high IS NOT NULL THEN round(kd.high * daf.adj_factor / la.anchor_factor, 6) END AS high,
-        CASE WHEN kd.low IS NOT NULL THEN round(kd.low * daf.adj_factor / la.anchor_factor, 6) END AS low,
-        CASE WHEN kd.close IS NOT NULL THEN round(kd.close * daf.adj_factor / la.anchor_factor, 6) END AS close,
+        CASE WHEN kd.open IS NOT NULL THEN round(kd.open * daf.adj_factor / la.anchor_factor, 2) END AS open,
+        CASE WHEN kd.high IS NOT NULL THEN round(kd.high * daf.adj_factor / la.anchor_factor, 2) END AS high,
+        CASE WHEN kd.low IS NOT NULL THEN round(kd.low * daf.adj_factor / la.anchor_factor, 2) END AS low,
+        CASE WHEN kd.close IS NOT NULL THEN round(kd.close * daf.adj_factor / la.anchor_factor, 2) END AS close,
         kd.volume,
         kd.amount,
         daf.adj_factor,
@@ -166,7 +166,7 @@ full_final AS (
         volume,
         amount,
         CASE
-            WHEN prev_close IS NOT NULL THEN round(close - prev_close, 6)
+            WHEN prev_close IS NOT NULL THEN round(close - prev_close, 2)
             ELSE NULL::numeric
         END AS change,
         CASE
@@ -187,10 +187,10 @@ date_adjusted AS (
     SELECT
         kd.instrument_id,
         kd.trade_date,
-        CASE WHEN kd.open IS NOT NULL THEN round(kd.open * daf.adj_factor / la.anchor_factor, 6) END AS open,
-        CASE WHEN kd.high IS NOT NULL THEN round(kd.high * daf.adj_factor / la.anchor_factor, 6) END AS high,
-        CASE WHEN kd.low IS NOT NULL THEN round(kd.low * daf.adj_factor / la.anchor_factor, 6) END AS low,
-        CASE WHEN kd.close IS NOT NULL THEN round(kd.close * daf.adj_factor / la.anchor_factor, 6) END AS close,
+        CASE WHEN kd.open IS NOT NULL THEN round(kd.open * daf.adj_factor / la.anchor_factor, 2) END AS open,
+        CASE WHEN kd.high IS NOT NULL THEN round(kd.high * daf.adj_factor / la.anchor_factor, 2) END AS high,
+        CASE WHEN kd.low IS NOT NULL THEN round(kd.low * daf.adj_factor / la.anchor_factor, 2) END AS low,
+        CASE WHEN kd.close IS NOT NULL THEN round(kd.close * daf.adj_factor / la.anchor_factor, 2) END AS close,
         kd.volume,
         kd.amount,
         prev_qfq.close AS prev_close,
@@ -230,7 +230,7 @@ date_final AS (
         volume,
         amount,
         CASE
-            WHEN prev_close IS NOT NULL THEN round(close - prev_close, 6)
+            WHEN prev_close IS NOT NULL THEN round(close - prev_close, 2)
             ELSE NULL::numeric
         END AS change,
         CASE

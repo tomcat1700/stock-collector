@@ -78,12 +78,12 @@ TUSHARE_DAILY_BASIC_FIELDS = (
 TUSHARE_SECRETS_PATH = pathlib.Path(__file__).resolve().parent / "config" / "tushare.secrets.local.yaml"
 
 
-def to_decimal_string(value: object) -> str | None:
+def to_decimal_string(value: object, decimals: int = 2) -> str | None:
     if value is None:
         return None
     if isinstance(value, float) and math.isnan(value):
         return None
-    return str(Decimal(str(value)))
+    return str(Decimal(str(round(float(value), decimals))))
 
 
 def normalize_date_column(frame: pd.DataFrame) -> pd.DataFrame:
@@ -208,10 +208,10 @@ def build_tushare_daily_row(
     return {
         "instrument_id": str(raw_row["ts_code"]),
         "trade_date": trade_date.isoformat(),
-        "open": to_decimal_string(raw_row.get("open")),
-        "high": to_decimal_string(high),
-        "low": to_decimal_string(low),
-        "close": to_decimal_string(raw_row.get("close")),
+        "open": to_decimal_string(raw_row.get("open"), decimals=2),
+        "high": to_decimal_string(high, decimals=2),
+        "low": to_decimal_string(low, decimals=2),
+        "close": to_decimal_string(raw_row.get("close"), decimals=2),
         "volume": None if volume_value is None else str(volume_value),
         "amount": to_decimal_string(amount_yuan),
         "pct_change": to_decimal_string(raw_row.get("pct_chg")),
