@@ -96,12 +96,12 @@ def normalize_code(value: object) -> str | None:
     return text
 
 
-def to_decimal_string(value: object) -> str | None:
+def to_decimal_string(value: object, decimals: int = 2) -> str | None:
     if value is None:
         return None
     if isinstance(value, float) and math.isnan(value):
         return None
-    return str(Decimal(str(value)))
+    return str(Decimal(str(round(float(value), decimals))))
 
 
 def to_int_string(value: object) -> str | None:
