@@ -170,12 +170,12 @@ full_final AS (
             ELSE NULL::numeric
         END AS change,
         CASE
-            WHEN prev_close IS NOT NULL AND prev_close <> 0 THEN round((close - prev_close) / prev_close * 100, 6)
+            WHEN prev_close IS NOT NULL AND prev_close <> 0 THEN round((close - prev_close) / prev_close * 100, 2)
             ELSE NULL::numeric
         END AS pct_change,
         CASE
             WHEN prev_close IS NOT NULL AND prev_close <> 0 AND high IS NOT NULL AND low IS NOT NULL
-                THEN round((high - low) / prev_close * 100, 6)
+                THEN round((high - low) / prev_close * 100, 2)
             ELSE NULL::numeric
         END AS amplitude,
         adj_factor,
@@ -234,12 +234,12 @@ date_final AS (
             ELSE NULL::numeric
         END AS change,
         CASE
-            WHEN prev_close IS NOT NULL AND prev_close <> 0 THEN round((close - prev_close) / prev_close * 100, 6)
+            WHEN prev_close IS NOT NULL AND prev_close <> 0 THEN round((close - prev_close) / prev_close * 100, 2)
             ELSE NULL::numeric
         END AS pct_change,
         CASE
             WHEN prev_close IS NOT NULL AND prev_close <> 0 AND high IS NOT NULL AND low IS NOT NULL
-                THEN round((high - low) / prev_close * 100, 6)
+                THEN round((high - low) / prev_close * 100, 2)
             ELSE NULL::numeric
         END AS amplitude,
         adj_factor,
